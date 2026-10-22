@@ -1,10 +1,35 @@
 # npm-install-audit
 
+<p align="center"><img src="npm_audit_demo.gif" alt="npm-install-audit flags a postinstall hook, shell commands, base64 decoding and a curl pipe in a take-home repo" width="680"></p>
+
 A small Node script to run **before** `npm install` on a repo you did not write: a take-home test from a recruiter, a "quick look" project from a stranger, an unknown clone.
 
 It reads `package.json` for install hooks (`preinstall`, `install`, `postinstall`, `prepare`) and scans `.js`, `.cjs`, `.mjs` and `.sh` files for patterns that fake interview repos and malicious packages tend to use.
 
 No dependencies. No network. Read only.
+
+## When to use it
+
+You got a take-home test from a recruiter, or a stranger asked you to "just run the project". Before the first `npm install`, spend 5 seconds on this. Install hooks run automatically with your user rights, so that one command is where fake interview repos often steal SSH keys, cloud credentials and wallet files.
+
+## Quick start
+
+```
+curl -O https://raw.githubusercontent.com/cryptostrapon/npm-install-audit/main/audit.js
+node audit.js ./take-home-task
+```
+
+## Example output
+
+```
+$ node audit.js ./take-home-task
+! package.json: postinstall hook runs: node scripts/setup.js
+! scripts/setup.js: runs shell commands
+! scripts/setup.js: decodes base64 at runtime
+! scripts/setup.js: pipes a download into a shell
+
+4 finding(s). Read them before you run npm install.
+```
 
 ## Usage
 
@@ -32,6 +57,6 @@ A clean result is not proof of safety. Obfuscated code, code fetched later, and 
 
 Fake recruiter repos with a poisoned `postinstall` are a common way wallets and credentials get stolen. Background: [malicious test project](https://cryptostrapon.com/stories/malicious-test-project) and [deepfake interviews](https://cryptostrapon.com/stories/deepfake-interviews).
 
-If this helped, a star helps other developers find it.
+**If this helped, please star the repo. It helps other developers find it.** ⭐
 
 MIT licensed. Maintained by [CryptoStrapon](https://cryptostrapon.com).
