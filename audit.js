@@ -5,6 +5,8 @@
 const fs = require("fs");
 const path = require("path");
 
+if (process.argv.includes("--version")) { console.log("npm-install-audit 1.1.0"); process.exit(0); }
+
 const target = process.argv[2] || ".";
 let root;
 try {
@@ -69,9 +71,57 @@ function walk(dir, depth) {
   }
 }
 
+// Git hooks and git config travel only when a repo arrives as a zip or a copied folder
+// (git clone never copies .git/hooks). They run on ordinary git commands, no npm needed.
+const GIT_CONFIG_RISKY = [
+  [/^\s*hookspath\s*=/i, "core.hooksPath points git hooks to another folder"],
+  [/^\s*fsmonitor\s*=/i, "core.fsmonitor runs a program on git status"],
+  [/^\s*(sshcommand|pager|editor|askpass)\s*=/i, "sets a program that git runs for you"],
+  [/^\s*[\w.-]+\s*=\s*!/, "defines an alias or helper that runs a shell command"],
+  [/^\s*(clean|smudge|process|textconv)\s*=/i, "defines a filter or diff driver that runs a program"],
+];
+
+function checkGit(dir) {
+  const gitDir = path.join(dir, ".git");
+  let st;
+  try { st = fs.statSync(gitDir); } catch { return; }
+  if (!st.isDirectory()) return;
+
+  const hooksDir = path.join(gitDir, "hooks");
+  let hooks = [];
+  try { hooks = fs.readdirSync(hooksDir, { withFileTypes: true }); } catch {}
+  for (const h of hooks) {
+    if (!h.isFile() || h.name.endsWith(".sample")) continue;
+    const p = path.join(hooksDir, h.name);
+    let text = "";
+    try { if (fs.statSync(p).size < 2e6) text = fs.readFileSync(p, "utf8"); } catch {}
+    let msg = "active git hook, runs automatically on git commands";
+    if (/(curl|wget)\s[^\n]*\|\s*(sh|bash|cmd)|\|\s*(sh|bash)\b/.test(text)) msg += ", downloads and runs code";
+    flag(p, msg);
+  }
+
+  let config = "";
+  try { config = fs.readFileSync(path.join(gitDir, "config"), "utf8"); } catch {}
+  for (const line of config.split(/\r?\n/)) {
+    for (const [re, why] of GIT_CONFIG_RISKY) {
+      if (re.test(line)) { flag(path.join(gitDir, "config"), why + ": " + line.trim()); break; }
+    }
+  }
+}
+
+function checkEditorConfig(dir) {
+  const tasks = path.join(dir, ".vscode", "tasks.json");
+  let text = "";
+  try { text = fs.readFileSync(tasks, "utf8"); } catch { return; }
+  if (/"runOn"\s*:\s*"folderOpen"/.test(text)) flag(tasks, "VS Code task runs when the folder is opened");
+}
+
+checkGit(root);
+checkEditorConfig(root);
 walk(root, 0);
 if (findings) {
-  console.log("\n" + findings + " finding(s). Read them before you run npm install.");
+  console.log("\n" + findings + " finding(s). Read them before you run npm install or any git command.");
+  console.log("Tip: git -c core.hooksPath=/dev/null <command> runs git without repo hooks.");
   process.exit(1);
 }
 console.log("No obvious install hooks or risky patterns found. Still read the code.");

