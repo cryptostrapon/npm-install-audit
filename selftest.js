@@ -53,6 +53,12 @@ write(
       "risky-git": "git+https://github.com/attacker/pkg.git",
       "risky-tgz": "https://example.com/pkg.tgz",
       "local-hack": "file:../internal",
+      "risky-gitproto": "git://github.com/attacker/pkg.git",
+      "risky-shorthand": "attacker/pkg#main",
+      "risky-link": "link:../linked",
+      "risky-url": "https://example.com/download?id=1",
+      "scoped-safe": "~2.3.0",
+      "tag-safe": "latest",
     },
   })
 );
@@ -68,7 +74,7 @@ const check = (name, cond) => {
 
 // Version check (v1.1.0)
 const v = spawnSync(process.execPath, [path.join(__dirname, "audit.js"), "--version"], { encoding: "utf8" });
-check("--version prints version", v.status === 0 && /npm-install-audit 1\.1\.0/.test(v.stdout));
+check("--version prints version", v.status === 0 && /npm-install-audit 1\.2\.0/.test(v.stdout));
 
 // Original checks
 const clean = run(path.join(tmp, "clean"));
@@ -109,6 +115,11 @@ check("flags git+https dep", /git URL dependency/.test(gitDep.stdout));
 check("flags tarball URL dep", /tarball URL dependency/.test(gitDep.stdout));
 check("flags file: dep", /local file: dependency/.test(gitDep.stdout));
 check("does not flag safe semver", !gitDep.stdout.includes('"safe-pkg"'));
+check("flags git:// dep", /git:\/\/ URL dependency/.test(gitDep.stdout));
+check("flags bare user/repo dep", /bare user\/repo GitHub dependency/.test(gitDep.stdout));
+check("flags link: dep", /local link: dependency/.test(gitDep.stdout));
+check("flags non-tarball URL dep", /"risky-url".*URL dependency/.test(gitDep.stdout));
+check("does not flag ~range or dist-tag", !/"scoped-safe"|"tag-safe"/.test(gitDep.stdout));
 
 // PR #4: --json flag checks
 const jsonClean = run(path.join(tmp, "clean"), ["--json"]);

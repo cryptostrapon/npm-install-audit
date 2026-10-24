@@ -5,7 +5,7 @@
 const fs = require("fs");
 const path = require("path");
 
-if (process.argv.includes("--version")) { console.log("npm-install-audit 1.1.0"); process.exit(0); }
+if (process.argv.includes("--version")) { console.log("npm-install-audit 1.2.0"); process.exit(0); }
 
 const args = process.argv.slice(2);
 const jsonMode = args.includes("--json");
@@ -41,11 +41,16 @@ const RISKY = [
 const NON_REGISTRY_DEP = [
   [/^git\+https?:\/\//i,  "git URL dependency (bypasses npm registry)"],
   [/^git\+ssh:\/\//i,     "git+ssh URL dependency (bypasses npm registry)"],
+  [/^git(\+file)?:\/\//i, "git:// URL dependency (bypasses npm registry)"],
   [/^github:/i,           "GitHub shorthand dependency (bypasses npm registry)"],
   [/^bitbucket:/i,        "Bitbucket shorthand dependency (bypasses npm registry)"],
   [/^gitlab:/i,           "GitLab shorthand dependency (bypasses npm registry)"],
-  [/^https?:\/\/.*\.tgz$|^https?:\/\/.*\.tar\.gz$/i, "tarball URL dependency (bypasses npm registry)"],
+  [/^https?:\/\/.*\.(tgz|tar\.gz)(#.*)?$/i, "tarball URL dependency (bypasses npm registry)"],
+  [/^https?:\/\//i,       "URL dependency (bypasses npm registry)"],
   [/^file:/i,             "local file: dependency (install-time arbitrary path)"],
+  [/^link:/i,             "local link: dependency (install-time arbitrary path)"],
+  // npm reads a bare "user/repo" (optionally "#ref") as a GitHub repo
+  [/^[A-Za-z0-9][\w.-]*\/[\w.-]+(#\S*)?$/, "bare user/repo GitHub dependency (bypasses npm registry)"],
 ];
 
 const SOURCE_EXT = /\.(js|cjs|mjs|ts|mts|cts|sh)$/;

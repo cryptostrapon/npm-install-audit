@@ -4,7 +4,7 @@
 
 A small Node script to run **before** `npm install` on a repo you did not write: a take-home test from a recruiter, a "quick look" project from a stranger, an unknown clone.
 
-It reads `package.json` for install hooks (`preinstall`, `install`, `postinstall`, `prepare`) and scans `.js`, `.cjs`, `.mjs` and `.sh` files for patterns that fake interview repos and malicious packages tend to use.
+It reads `package.json` for install hooks (`preinstall`, `install`, `postinstall`, `prepare`) and dependencies that bypass the npm registry, and scans `.js`, `.cjs`, `.mjs`, `.ts`, `.mts`, `.cts` and `.sh` files for patterns that fake interview repos and malicious packages tend to use.
 
 **New in 1.1:** it also checks `.git/hooks`, `.git/config` and `.vscode/tasks.json`. A repo sent as a zip can carry active git hooks that run on `git pull`, `git checkout` or `git commit`, so the attack does not need `npm install` at all.
 
@@ -37,13 +37,18 @@ $ node audit.js ./take-home-task
 
 ```
 node audit.js ./some-repo
+node audit.js --json ./some-repo   # machine-readable output
+node audit.js --version
 ```
+
+With `--json` the findings are printed as a JSON array of `{ "file", "rule", "message" }` objects (`[]` when clean), which is handy in CI.
 
 Exit code is 1 if anything is flagged, 0 if clean, 2 if the path cannot be read. Run `node selftest.js` to check the script itself.
 
 ## What it flags
 
 - install hooks that run a command
+- dependencies that bypass the npm registry: git URLs (`git+https`, `git+ssh`, `git://`), `github:`/`gitlab:`/`bitbucket:` and bare `user/repo` shorthands, tarball and other URLs, `file:` and `link:` paths
 - shell execution (`child_process`, `execSync`, `spawn`)
 - runtime code evaluation (`eval`, `new Function`)
 - base64 decoding at runtime
@@ -70,6 +75,7 @@ A clean result is not proof of safety. Obfuscated code, code fetched later, and 
 
 ## Changelog
 
+- **1.2.0:** TypeScript files (`.ts`, `.mts`, `.cts`), `--json` output and non-registry dependency checks (thanks @ayushdwivedi-stack, #4); also flags `git://`, bare `user/repo`, `link:` and non-tarball URL dependencies.
 - **1.1.0:** checks `.git/hooks`, risky `.git/config` entries and VS Code `folderOpen` tasks. `node audit.js --version` prints the version.
 - **1.0.0:** install hooks and risky patterns in JS and shell files.
 
