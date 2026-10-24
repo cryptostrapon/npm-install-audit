@@ -1,5 +1,7 @@
 # npm-install-audit
 
+[![selftest](https://github.com/cryptostrapon/npm-install-audit/actions/workflows/selftest.yml/badge.svg)](https://github.com/cryptostrapon/npm-install-audit/actions/workflows/selftest.yml) [![release](https://img.shields.io/github/v/release/cryptostrapon/npm-install-audit)](https://github.com/cryptostrapon/npm-install-audit/releases) [![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen) [![GitHub stars](https://img.shields.io/github/stars/cryptostrapon/npm-install-audit?style=social)](https://github.com/cryptostrapon/npm-install-audit/stargazers)
+
 <p align="center"><img src="npm_audit_demo.gif" alt="npm-install-audit flags a postinstall hook, shell commands, base64 decoding and a curl pipe in a take-home repo" width="680"></p>
 
 A small Node script to run **before** `npm install` on a repo you did not write: a take-home test from a recruiter, a "quick look" project from a stranger, an unknown clone.
@@ -9,6 +11,13 @@ It reads `package.json` for install hooks (`preinstall`, `install`, `postinstall
 **New in 1.1:** it also checks `.git/hooks`, `.git/config` and `.vscode/tasks.json`. A repo sent as a zip can carry active git hooks that run on `git pull`, `git checkout` or `git commit`, so the attack does not need `npm install` at all.
 
 No dependencies. No network. Read only.
+
+## Who it is for
+
+- **Developers job hunting:** a recruiter sends a take-home repo and asks you to "just run npm install".
+- **Hiring and security teams:** a quick, read-only check before a repo from a candidate or vendor touches a laptop.
+- **Open source maintainers:** look at a stranger's sample project or reproduction repo before running it.
+- **CI:** `--json` output and exit codes make it easy to gate unknown code.
 
 ## When to use it
 
