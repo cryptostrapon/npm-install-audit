@@ -130,6 +130,22 @@ A clean result is not proof of safety. Obfuscated code, code fetched later, and 
 - **1.1.0:** checks `.git/hooks`, risky `.git/config` entries and VS Code `folderOpen` tasks. `node audit.js --version` prints the version.
 - **1.0.0:** install hooks and risky patterns in JS and shell files.
 
+## Before a coding agent runs install
+
+Coding agents can run `npm install` as soon as you ask them to set up a repo. If the repo came from someone you do not know, check it first and keep the agent from installing until you have read the findings:
+
+```sh
+npx npm-install-audit ./repo
+```
+
+To make this the default, add one line to the agent's instructions file (for example `AGENTS.md` or `CLAUDE.md`):
+
+```text
+Before running npm, yarn or pnpm install in this repo, run `npx npm-install-audit .` and stop if it reports findings.
+```
+
+The check only reads files, so it is safe to run before the agent does anything else. It does not replace reviewing the code the agent writes or runs later.
+
 ## Why
 
 Fake recruiter repos with a poisoned `postinstall` are a common way wallets and credentials get stolen. Background: [malicious test project](https://cryptostrapon.com/stories/malicious-test-project) and [deepfake interviews](https://cryptostrapon.com/stories/deepfake-interviews).
