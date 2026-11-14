@@ -156,4 +156,4 @@ MIT licensed. Maintained by [CryptoStrapon](https://cryptostrapon.com).
 
 ## Show your support
 
-If npm-install-audit flagged something nasty before it ran, a star helps other developers find it: ⭐ [star the repo](https://github.com/cryptostrapon/npm-install-audit/stargazers). Issues and PRs are welcome too — see [contributing](CONTRIBUTING.md) and the `good first issue` label.
+If npm-install-audit helped you inspect an unfamiliar project, consider [starring the repository](https://github.com/cryptostrapon/npm-install-audit). It helps other developers discover the tool. Reports, corrections and contributions are welcome in the [issue tracker](https://github.com/cryptostrapon/npm-install-audit/issues).
