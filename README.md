@@ -153,3 +153,7 @@ Fake recruiter repos with a poisoned `postinstall` are a common way wallets and 
 **If this helped, please star the repo. It helps other developers find it.** ⭐
 
 MIT licensed. Maintained by [CryptoStrapon](https://cryptostrapon.com).
+
+## Show your support
+
+If npm-install-audit flagged something nasty before it ran, a star helps other developers find it: ⭐ [star the repo](https://github.com/cryptostrapon/npm-install-audit/stargazers). Issues and PRs are welcome too — see [contributing](CONTRIBUTING.md) and the `good first issue` label.
