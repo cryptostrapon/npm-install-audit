@@ -136,7 +136,8 @@ const check = (name, cond) => {
 
 // Version check (v1.1.0)
 const v = spawnSync(process.execPath, [path.join(__dirname, "audit.js"), "--version"], { encoding: "utf8" });
-check("--version prints version", v.status === 0 && /npm-install-audit 1\.4\.0/.test(v.stdout));
+check("--version matches package.json", v.status === 0 && v.stdout.trim() ===
+  "npm-install-audit " + require("./package.json").version);
 
 // Original checks
 const clean = run(path.join(tmp, "clean"));

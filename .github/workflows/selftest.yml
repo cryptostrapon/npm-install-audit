@@ -10,9 +10,11 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
         node: [18, 20, 22]
     steps:
       - uses: actions/checkout@v5
@@ -20,3 +22,14 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: npm test
+      - name: Smoke-test the composite action against the harmless demo
+        id: demo
+        uses: ./
+        with:
+          path: examples/safe-take-home
+          fail-on-findings: 'false'
+      - name: Check the action findings output
+        shell: bash
+        env:
+          FINDINGS: ${{ steps.demo.outputs.findings }}
+        run: test "$FINDINGS" = "2"

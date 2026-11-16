@@ -16,9 +16,11 @@ It reads `package.json` for install hooks (`preinstall`, `install`, `postinstall
 
 No dependencies. No network. Read only.
 
-**Unreleased on main:** `.yarnrc` files are also checked for Yarn 1 `yarn-path`
+**Preparing 1.5.0:** `.yarnrc` files are also checked for Yarn 1 `yarn-path`
 delegation, including quoted paths; unquoted `false` disables it. This check is
-not yet in the published `1.4.0` npm package or `v1.4.0` GitHub Action tag.
+not in the `1.4.0` npm package or `v1.4.0` GitHub Action tag. Check the
+[releases page](https://github.com/cryptostrapon/npm-install-audit/releases)
+for publication status.
 
 We also contributed a manual checklist for this situation to the [OWASP NPM Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/NPM_Security_Cheat_Sheet.html): the section "Inspecting a project you did not write" ([#2908](https://github.com/OWASP/CheatSheetSeries/pull/2908)).
 
@@ -154,6 +156,7 @@ A clean result is not proof of safety. Obfuscated code, code fetched later, and 
 
 ## Changelog
 
+- **1.5.0 (preparing release):** flags Yarn 1 `yarn-path` delegation in `.yarnrc`, including quoted paths and the unquoted `false` opt-out (#30). Adds a harmless take-home demo (#27), a safer standalone launch checklist (#26), and CI coverage for Linux, Windows and macOS on Node 18/20/22, including composite-action smoke tests.
 - **1.4.0:** flags `.pnpmfile.cjs` hook files (#15), `yarnPath` pointing Yarn at a project binary (#17) and risky project `.npmrc` settings: `script-shell`, `ignore-scripts=false`, `node-options`, `init-module` (#18). Thanks @Doomguy-BFG9000.
 - **1.3.2:** adds a GitHub Action (`action.yml`), so the same check can run in a workflow before any install step. No change to the checks.
 - **1.3.1:** available on npm (`npx npm-install-audit ./repo`). Releases are published from GitHub Actions through npm trusted publishing, with provenance and no stored npm token. No change to the checks.
