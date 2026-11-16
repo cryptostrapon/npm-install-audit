@@ -2,7 +2,7 @@
 
 [![selftest](https://github.com/cryptostrapon/npm-install-audit/actions/workflows/selftest.yml/badge.svg)](https://github.com/cryptostrapon/npm-install-audit/actions/workflows/selftest.yml) [![release](https://img.shields.io/github/v/release/cryptostrapon/npm-install-audit)](https://github.com/cryptostrapon/npm-install-audit/releases) [![GitHub Marketplace](https://img.shields.io/badge/Marketplace-npm--install--audit-blue?logo=github)](https://github.com/marketplace/actions/npm-install-audit) [![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen) [![GitHub stars](https://img.shields.io/github/stars/cryptostrapon/npm-install-audit?style=social)](https://github.com/cryptostrapon/npm-install-audit/stargazers)
 
-<p align="center"><img src="npm_audit_demo.gif" alt="npm-install-audit flags a postinstall hook, shell commands, base64 decoding and a curl pipe in a take-home repo" width="680"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/cryptostrapon/npm-install-audit/main/docs/assets/repository-cover.png" alt="Before npm install, inspect the repo. Read-only checks with zero dependencies. A clean scan is not proof of safety." width="100%"></p>
 
 A small Node script to run **before** `npm install` on a repo you did not write: a take-home test from a recruiter, a "quick look" project from a stranger, an unknown clone.
 
@@ -16,11 +16,11 @@ It reads `package.json` for install hooks (`preinstall`, `install`, `postinstall
 
 No dependencies. No network. Read only.
 
-**Preparing 1.5.0:** `.yarnrc` files are also checked for Yarn 1 `yarn-path`
-delegation, including quoted paths; unquoted `false` disables it. This check is
-not in the `1.4.0` npm package or `v1.4.0` GitHub Action tag. Check the
-[releases page](https://github.com/cryptostrapon/npm-install-audit/releases)
-for publication status.
+**New in 1.5.0:** `.yarnrc` files are also checked for Yarn 1 `yarn-path`
+delegation, including quoted paths; unquoted `false` disables it. A harmless
+take-home demo shows two findings without running its install hook. The CLI and
+composite action are tested on Linux, Windows and macOS 15 (Intel), using
+Node 18, 20 and 22.
 
 We also contributed a manual checklist for this situation to the [OWASP NPM Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/NPM_Security_Cheat_Sheet.html): the section "Inspecting a project you did not write" ([#2908](https://github.com/OWASP/CheatSheetSeries/pull/2908)).
 
@@ -51,7 +51,7 @@ scanner before trusting it; scanning is not a substitute for isolation.
 If you choose the npm package instead, run this from a trusted directory too:
 
 ```sh
-npx npm-install-audit@1.4.0 /absolute/path/to/take-home-task
+npx npm-install-audit@1.5.0 /absolute/path/to/take-home-task
 ```
 
 Unlike the standalone scan, `npx` may download and execute the scanner package.
@@ -65,7 +65,7 @@ for a short review workflow you can share with a colleague or hiring team.
 In GitHub Actions, add one step after checkout and before any install step (details in [GitHub Action](#github-action)):
 
 ```yaml
-- uses: cryptostrapon/npm-install-audit@v1.4.0
+- uses: cryptostrapon/npm-install-audit@v1.5.0
 ```
 
 Or without npm, as a single file:
@@ -81,6 +81,8 @@ The `main` URL changes over time. For repeatable use, review and download the
 file from a specific release or commit instead.
 
 ## Example output
+
+<p align="center"><img src="npm_audit_demo.gif" alt="Example audit output flags install hooks, shell commands, base64 decoding and a download piped to a shell" width="680"></p>
 
 Want a reproducible example instead of a screenshot? Try the
 [harmless take-home demo](docs/safe-take-home-demo.md): two expected findings,
@@ -114,7 +116,7 @@ Run the same check in a workflow, for example on a pull request from someone you
 
 ```yaml
 - uses: actions/checkout@v5
-- uses: cryptostrapon/npm-install-audit@v1.4.0
+- uses: cryptostrapon/npm-install-audit@v1.5.0
   with:
     path: .                  # folder to check
     fail-on-findings: true   # set to false to only report
@@ -156,7 +158,7 @@ A clean result is not proof of safety. Obfuscated code, code fetched later, and 
 
 ## Changelog
 
-- **1.5.0 (preparing release):** flags Yarn 1 `yarn-path` delegation in `.yarnrc`, including quoted paths and the unquoted `false` opt-out (#30). Adds a harmless take-home demo (#27), a safer standalone launch checklist (#26), and CI coverage for Linux, Windows and macOS on Node 18/20/22, including composite-action smoke tests.
+- **1.5.0:** flags Yarn 1 `yarn-path` delegation in `.yarnrc`, including quoted paths and the unquoted `false` opt-out (#30). Adds a harmless take-home demo (#27), a safer standalone launch checklist (#26), and CI coverage for Linux, Windows and macOS 15 (Intel) on Node 18/20/22, including composite-action smoke tests.
 - **1.4.0:** flags `.pnpmfile.cjs` hook files (#15), `yarnPath` pointing Yarn at a project binary (#17) and risky project `.npmrc` settings: `script-shell`, `ignore-scripts=false`, `node-options`, `init-module` (#18). Thanks @Doomguy-BFG9000.
 - **1.3.2:** adds a GitHub Action (`action.yml`), so the same check can run in a workflow before any install step. No change to the checks.
 - **1.3.1:** available on npm (`npx npm-install-audit ./repo`). Releases are published from GitHub Actions through npm trusted publishing, with provenance and no stored npm token. No change to the checks.
