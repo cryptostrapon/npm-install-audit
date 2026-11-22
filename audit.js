@@ -5,7 +5,7 @@
 const fs = require("fs");
 const path = require("path");
 
-if (process.argv.includes("--version")) { console.log("npm-install-audit 1.5.0"); process.exit(0); }
+if (process.argv.includes("--version")) { console.log("npm-install-audit 1.6.0"); process.exit(0); }
 
 const args = process.argv.slice(2);
 const jsonMode = args.includes("--json");
@@ -120,6 +120,26 @@ function checkSource(file) {
   }
 }
 
+// npm reads only the .npmrc at the workspace root. A .npmrc inside a workspace
+// folder is ignored during installs, so a safety setting there does nothing.
+function workspacePatterns() {
+  let pkg;
+  try { pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")); } catch { return []; }
+  const ws = Array.isArray(pkg.workspaces) ? pkg.workspaces
+    : (pkg.workspaces && Array.isArray(pkg.workspaces.packages) ? pkg.workspaces.packages : []);
+  return ws.filter((w) => typeof w === "string" && !w.startsWith("!")).map((w) => {
+    const clean = w.replace(/^\.\//, "").replace(/\/+$/, "");
+    const re = clean.split("/").map((part) => part === "**" ? ".*"
+      : part.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]")).join("/");
+    return new RegExp("^" + re + "$");
+  });
+}
+const WORKSPACES = workspacePatterns();
+const inWorkspaceFolder = (file) => {
+  const dir = path.relative(root, path.dirname(file)).split(path.sep).join("/");
+  return dir !== "" && WORKSPACES.some((re) => re.test(dir));
+};
+
 const OFFICIAL_REGISTRY = /^https?:\/\/registry\.(npmjs\.org|yarnpkg\.com)\/?$/i;
 const NPM_CONFIG_RISKY = {
   "script-shell": "script-shell selects the program npm uses to run scripts",
@@ -168,6 +188,8 @@ function checkRegistryConfig(file) {
       const configured = quoted ? quoted[2] : value.split(/[;#]/)[0].trim();
       if (configured && (setting[1] !== "ignore-scripts" || configured === "false")) {
         flag(file, NPM_CONFIG_RISKY[setting[1]]);
+      } else if (setting[1] === "ignore-scripts" && configured === "true" && inWorkspaceFolder(file)) {
+        flag(file, "ignore-scripts=true in a workspace folder has no effect: npm only reads the workspace root .npmrc, so these scripts still run on a root install");
       }
       continue;
     }
