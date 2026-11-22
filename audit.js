@@ -5,7 +5,7 @@
 const fs = require("fs");
 const path = require("path");
 
-if (process.argv.includes("--version")) { console.log("npm-install-audit 1.6.0"); process.exit(0); }
+if (process.argv.includes("--version")) { console.log("npm-install-audit 1.7.0"); process.exit(0); }
 
 const args = process.argv.slice(2);
 const jsonMode = args.includes("--json");
@@ -88,6 +88,10 @@ function checkPackage(file) {
     }
   }
 
+  if (Array.isArray(pkg.trustedDependencies) && pkg.trustedDependencies.length) {
+    flag(file, "trustedDependencies lets these packages run install scripts under Bun: " + pkg.trustedDependencies.slice(0, 10).join(", "));
+  }
+
   const depFields = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
   for (const field of depFields) {
     const deps = pkg[field];
@@ -146,6 +150,7 @@ const NPM_CONFIG_RISKY = {
   "ignore-scripts": "ignore-scripts=false explicitly enables npm lifecycle scripts",
   "node-options": "node-options passes options to Node.js lifecycle processes",
   "init-module": "init-module selects the module npm init loads",
+  "extension-file": "extension-file makes npm load a project file as code (npm 12 extensions)",
 };
 
 function checkRegistryConfig(file) {
@@ -181,7 +186,7 @@ function checkRegistryConfig(file) {
       flag(file, "ships a registry auth token, so the install can fetch packages the public registry does not show (token not printed)");
       continue;
     }
-    const setting = /\.npmrc$/.test(file) && line.match(/^(script-shell|ignore-scripts|node-options|init-module)\s*=\s*(.*)$/);
+    const setting = /\.npmrc$/.test(file) && line.match(/^(script-shell|ignore-scripts|node-options|init-module|extension-file)\s*=\s*(.*)$/);
     if (setting) {
       const value = setting[2].trim();
       const quoted = value.match(/^(["'])(.*?)\1\s*(?:[;#].*)?$/);
@@ -203,6 +208,52 @@ function checkRegistryConfig(file) {
       flag(file, (scope ? scope + " packages install" : "installs come") + " from another registry: " + url);
     }
   }
+}
+
+const DEVCONTAINER_HOOKS = ["initializeCommand", "onCreateCommand", "updateContentCommand", "postCreateCommand", "postStartCommand", "postAttachCommand"];
+
+function checkDevcontainer(file) {
+  let text = "";
+  try { if (fs.statSync(file).size < 2e5) text = fs.readFileSync(file, "utf8"); } catch { return; }
+  const code = text.split(/\r?\n/).filter((l) => !/^\s*\/\//.test(l)).join("\n");
+  for (const hook of DEVCONTAINER_HOOKS) {
+    if (!new RegExp('"' + hook + '"\\s*:').test(code)) continue;
+    flag(file, hook === "initializeCommand"
+      ? "devcontainer initializeCommand runs on your own machine before the container is built"
+      : "devcontainer " + hook + " runs automatically when the dev container is created or started (VS Code, Codespaces)");
+  }
+}
+
+const OFFICIAL_BUN_REGISTRY = /^https?:\/\/([^@\/]*@)?registry\.npmjs\.org\/?$/i;
+
+function checkBunfig(file) {
+  let text = "";
+  try { if (fs.statSync(file).size < 2e5) text = fs.readFileSync(file, "utf8"); } catch { return; }
+  let section = "";
+  let credentials = false;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/\s+#.*$/, "").trim();
+    if (!line || line.startsWith("#")) continue;
+    const head = line.match(/^\[([^\]]+)\]$/);
+    if (head) { section = head[1].trim(); continue; }
+    const kv = line.match(/^("?[@\w.-]+"?)\s*=\s*(.*)$/);
+    if (!kv) continue;
+    const key = kv[1].replace(/"/g, "");
+    const value = kv[2];
+    if (key === "preload" && (section === "" || section === "test")) {
+      flag(file, (section === "test" ? "test.preload makes Bun run these files before bun test: " : "preload makes Bun run these files before bun run: ") + value.slice(0, 120));
+      continue;
+    }
+    const inScopes = section === "install.scopes";
+    if ((section === "install" && key === "registry") || inScopes) {
+      const url = (value.match(/https?:\/\/[^"'\s,}]+/) || [])[0];
+      if (url && !OFFICIAL_BUN_REGISTRY.test(url)) {
+        flag(file, (inScopes ? key + " packages install" : "installs come") + " from another registry: " + url.replace(/\/\/[^@\/]*@/, "//"));
+      }
+      if (/\/\/[^@\/$]+:[^@\/$]+@/.test(value) || /(token|password)\s*=\s*"(?!\$)[^"]+"/.test(value)) credentials = true;
+    }
+  }
+  if (credentials) flag(file, "ships registry credentials, so the install can fetch packages the public registry does not show (not printed)");
 }
 
 function checkGit(dir) {
@@ -257,6 +308,11 @@ function walk(dir, depth) {
     if (e.name === "package.json") { checkPackage(p); continue; }
     if (e.name === ".npmrc" || e.name === ".yarnrc" || e.name === ".yarnrc.yml") { checkRegistryConfig(p); continue; }
     if (e.name === ".pnpmfile.cjs") flag(p, "pnpm hook file runs automatically during pnpm install");
+    if (e.name === ".npm-extension.mjs" || e.name === ".npm-extension.cjs") {
+      flag(p, "npm 12 extension file: npm loads it as code when you install, pack or publish here, and npm pack still runs it with --ignore-scripts on npm 12.2.3 (npm/cli#10304)");
+    }
+    if (e.name === ".devcontainer.json" || (e.name === "devcontainer.json" && path.relative(root, p).split(path.sep).includes(".devcontainer"))) checkDevcontainer(p);
+    if (e.name === "bunfig.toml") checkBunfig(p);
     if (SOURCE_EXT.test(e.name)) {
       let size = 0;
       try { size = fs.statSync(p).size; } catch { continue; }

@@ -16,6 +16,14 @@ It reads `package.json` for install hooks (`preinstall`, `install`, `postinstall
 
 No dependencies. No network. Read only.
 
+**New in 1.7.0:** three more ways a repo can run code before you notice. npm 12
+extension files (`.npm-extension.cjs`/`.mjs`, plus `extension-file` in `.npmrc`),
+which `npm pack` still runs with `--ignore-scripts` on npm 12.2.3
+([npm/cli#10304](https://github.com/npm/cli/issues/10304)); dev container
+lifecycle commands, including `initializeCommand`, which runs on your own
+machine; and Bun settings: `preload`, custom registries and credentials in
+`bunfig.toml`, and `trustedDependencies` in `package.json`.
+
 **New in 1.6.0:** in an npm workspaces monorepo it flags `ignore-scripts=true`
 in a `.npmrc` inside a workspace folder. npm only reads the workspace root
 `.npmrc`, so that setting does nothing and the package's install scripts still
@@ -153,7 +161,11 @@ The step fails when anything is flagged and sets the `findings` output to the nu
 - base64 decoding at runtime
 - `curl | sh` and `wget | bash` pipes
 - paths to SSH keys, cloud credentials, wallet files and browser data
-- project `.npmrc` overrides for `script-shell`, `ignore-scripts=false`, `node-options` and `init-module`, which change the programs or scripts npm runs
+- project `.npmrc` overrides for `script-shell`, `ignore-scripts=false`, `node-options`, `init-module` and `extension-file`, which change the programs or scripts npm runs
+- `ignore-scripts=true` in a `.npmrc` inside a workspace folder, which npm ignores in workspaces
+- npm 12 extension files (`.npm-extension.cjs`, `.npm-extension.mjs`), which npm loads as code; `npm pack` still runs them with `--ignore-scripts` on npm 12.2.3 ([npm/cli#10304](https://github.com/npm/cli/issues/10304))
+- dev container lifecycle commands in `.devcontainer/devcontainer.json` or `.devcontainer.json`: `initializeCommand` runs on your own machine, the others run when the container is created or started
+- Bun settings that run code or change where packages come from: `preload` and `test.preload` in `bunfig.toml`, `[install]` and `[install.scopes]` registries and credentials, and `trustedDependencies` in `package.json`
 - very long encoded strings
 - active git hooks in `.git/hooks` (anything that is not a `.sample` file), and hooks that download and run code
 - risky `.git/config` entries: `core.hooksPath`, `core.fsmonitor`, `sshCommand`, `pager`, `editor`, aliases that run shell commands, filter and diff drivers
@@ -177,6 +189,7 @@ A clean result is not proof of safety. Obfuscated code, code fetched later, and 
 
 ## Changelog
 
+- **1.7.0:** flags npm 12 extension files and `extension-file` in `.npmrc` (npm/cli#10304), dev container lifecycle commands (`initializeCommand`, `onCreateCommand`, `updateContentCommand`, `postCreateCommand`, `postStartCommand`, `postAttachCommand`), Bun `preload` and `test.preload`, Bun registries and credentials in `bunfig.toml`, and `trustedDependencies` in `package.json`. Credentials are never printed.
 - **1.6.0:** flags `ignore-scripts=true` in a workspace folder `.npmrc`, which npm ignores in workspaces (#34). Supports `workspaces` arrays, `workspaces.packages` and `*`/`**` patterns.
 - **1.5.0:** flags Yarn 1 `yarn-path` delegation in `.yarnrc`, including quoted paths and the unquoted `false` opt-out (#30). Adds a harmless take-home demo (#27), a safer standalone launch checklist (#26), and CI coverage for Linux, Windows and macOS 15 (Intel) on Node 18/20/22, including composite-action smoke tests.
 - **1.4.0:** flags `.pnpmfile.cjs` hook files (#15), `yarnPath` pointing Yarn at a project binary (#17) and risky project `.npmrc` settings: `script-shell`, `ignore-scripts=false`, `node-options`, `init-module` (#18). Thanks @Doomguy-BFG9000.
