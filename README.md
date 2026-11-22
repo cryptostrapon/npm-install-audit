@@ -78,7 +78,7 @@ scanner before trusting it; scanning is not a substitute for isolation.
 If you choose the npm package instead, run this from a trusted directory too:
 
 ```sh
-npx npm-install-audit@1.5.0 /absolute/path/to/take-home-task
+npx npm-install-audit@1.7.0 /absolute/path/to/take-home-task
 ```
 
 Unlike the standalone scan, `npx` may download and execute the scanner package.
@@ -92,7 +92,7 @@ for a short review workflow you can share with a colleague or hiring team.
 In GitHub Actions, add one step after checkout and before any install step (details in [GitHub Action](#github-action)):
 
 ```yaml
-- uses: cryptostrapon/npm-install-audit@v1.5.0
+- uses: cryptostrapon/npm-install-audit@v1.7.0
 ```
 
 Or without npm, as a single file:
@@ -143,7 +143,7 @@ Run the same check in a workflow, for example on a pull request from someone you
 
 ```yaml
 - uses: actions/checkout@v5
-- uses: cryptostrapon/npm-install-audit@v1.5.0
+- uses: cryptostrapon/npm-install-audit@v1.7.0
   with:
     path: .                  # folder to check
     fail-on-findings: true   # set to false to only report
