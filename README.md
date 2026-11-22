@@ -16,6 +16,11 @@ It reads `package.json` for install hooks (`preinstall`, `install`, `postinstall
 
 No dependencies. No network. Read only.
 
+**New in 1.6.0:** in an npm workspaces monorepo it flags `ignore-scripts=true`
+in a `.npmrc` inside a workspace folder. npm only reads the workspace root
+`.npmrc`, so that setting does nothing and the package's install scripts still
+run on a root install. Put the setting in the root `.npmrc` instead.
+
 **New in 1.5.0:** `.yarnrc` files are also checked for Yarn 1 `yarn-path`
 delegation, including quoted paths; unquoted `false` disables it. A harmless
 take-home demo shows two findings without running its install hook. The CLI and
@@ -172,6 +177,7 @@ A clean result is not proof of safety. Obfuscated code, code fetched later, and 
 
 ## Changelog
 
+- **1.6.0:** flags `ignore-scripts=true` in a workspace folder `.npmrc`, which npm ignores in workspaces (#34). Supports `workspaces` arrays, `workspaces.packages` and `*`/`**` patterns.
 - **1.5.0:** flags Yarn 1 `yarn-path` delegation in `.yarnrc`, including quoted paths and the unquoted `false` opt-out (#30). Adds a harmless take-home demo (#27), a safer standalone launch checklist (#26), and CI coverage for Linux, Windows and macOS 15 (Intel) on Node 18/20/22, including composite-action smoke tests.
 - **1.4.0:** flags `.pnpmfile.cjs` hook files (#15), `yarnPath` pointing Yarn at a project binary (#17) and risky project `.npmrc` settings: `script-shell`, `ignore-scripts=false`, `node-options`, `init-module` (#18). Thanks @Doomguy-BFG9000.
 - **1.3.2:** adds a GitHub Action (`action.yml`), so the same check can run in a workflow before any install step. No change to the checks.

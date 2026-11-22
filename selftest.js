@@ -125,6 +125,21 @@ write("yarn-classic-wrong-file/.npmrc", 'yarn-path "./ignored.cjs"\n');
 write("yarn-classic-wrong-file/.yarnrc.yml", 'yarn-path "./ignored.cjs"\n');
 write("yarn-classic-mixed/.yarnrc", 'yarn-path "./.yarn/yarn.cjs"\n//registry.npmjs.org/:_authToken=npm_CLASSIC_SECRET\nregistry "https://yarn.evil.example"\n');
 
+// npm workspaces: a .npmrc inside a workspace folder is ignored by npm (1.6.0)
+write("ws-ignored/package.json", JSON.stringify({ name: "ws-root", private: true, workspaces: ["packages/*"] }));
+write("ws-ignored/packages/a/package.json", JSON.stringify({ name: "a" }));
+write("ws-ignored/packages/a/.npmrc", "ignore-scripts=true\n");
+write("ws-object/package.json", JSON.stringify({ name: "ws-object", private: true, workspaces: { packages: ["./apps/**"] } }));
+write("ws-object/apps/web/package.json", JSON.stringify({ name: "web" }));
+write("ws-object/apps/web/.npmrc", 'ignore-scripts = "true" ; package-level\n');
+write("ws-root-only/package.json", JSON.stringify({ name: "ws-root-only", private: true, workspaces: ["packages/*"] }));
+write("ws-root-only/.npmrc", "ignore-scripts=true\n");
+write("ws-root-only/packages/a/package.json", JSON.stringify({ name: "a" }));
+write("ws-none/package.json", JSON.stringify({ name: "ws-none" }));
+write("ws-none/sub/.npmrc", "ignore-scripts=true\n");
+write("ws-outside/package.json", JSON.stringify({ name: "ws-outside", private: true, workspaces: ["packages/*"] }));
+write("ws-outside/tools/x/.npmrc", "ignore-scripts=true\n");
+
 const run = (dir, extra = []) =>
   spawnSync(process.execPath, [path.join(__dirname, "audit.js"), ...extra, dir], { encoding: "utf8" });
 
@@ -275,6 +290,15 @@ check("quoted false remains a Yarn 1 path, not the disabling boolean", run(path.
 check("does not parse Yarn 1 keys in npm or Yarn YAML config", run(path.join(tmp, "yarn-classic-wrong-file")).status === 0);
 const classicMixed = run(path.join(tmp, "yarn-classic-mixed"));
 check("keeps Yarn 1 registry and token findings without exposing secrets", classicMixed.stdout.includes("yarn-path") && classicMixed.stdout.includes("registry auth token") && classicMixed.stdout.includes("another registry") && !classicMixed.stdout.includes("CLASSIC_SECRET"));
+
+// 1.6.0: npm workspaces
+const wsIgnored = JSON.parse(run(path.join(tmp, "ws-ignored"), ["--json"]).stdout);
+check("flags ignore-scripts=true inside a workspace folder", wsIgnored.length === 1 && wsIgnored[0].file === path.join("packages", "a", ".npmrc") && wsIgnored[0].rule.includes("has no effect"));
+const wsObject = JSON.parse(run(path.join(tmp, "ws-object"), ["--json"]).stdout);
+check("supports workspaces.packages and ** patterns", wsObject.length === 1 && wsObject[0].file === path.join("apps", "web", ".npmrc"));
+check("does not flag ignore-scripts=true in the workspace root .npmrc", run(path.join(tmp, "ws-root-only")).status === 0);
+check("does not flag a nested .npmrc when the project has no workspaces", run(path.join(tmp, "ws-none")).status === 0);
+check("does not flag a .npmrc outside the workspace patterns", run(path.join(tmp, "ws-outside")).status === 0);
 
 fs.rmSync(tmp, { recursive: true, force: true });
 process.exit(ok ? 0 : 1);
