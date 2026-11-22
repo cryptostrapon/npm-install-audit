@@ -50,6 +50,7 @@ const npmrcSettings = [
   ["ignore-scripts", "false", "ignore-scripts=false explicitly enables npm lifecycle scripts"],
   ["node-options", "--require=./project-bootstrap.cjs", "node-options passes options to Node.js lifecycle processes"],
   ["init-module", "./project-init.cjs", "init-module selects the module npm init loads"],
+  ["extension-file", "./tools/ext.mjs", "extension-file makes npm load a project file as code (npm 12 extensions)"],
 ];
 for (const [key, value] of npmrcSettings) write("npmrc-" + key + "/.npmrc", key + "=" + value + "\n");
 const npmrcMarker = path.join(tmp, "npmrc-module-executed");
@@ -139,6 +140,23 @@ write("ws-none/package.json", JSON.stringify({ name: "ws-none" }));
 write("ws-none/sub/.npmrc", "ignore-scripts=true\n");
 write("ws-outside/package.json", JSON.stringify({ name: "ws-outside", private: true, workspaces: ["packages/*"] }));
 write("ws-outside/tools/x/.npmrc", "ignore-scripts=true\n");
+
+// 1.7.0: npm 12 extension files, dev container lifecycle commands, Bun config
+const extMarker = path.join(tmp, "npm-extension-executed");
+write("npm-ext/package.json", JSON.stringify({ name: "npm-ext" }));
+write("npm-ext/.npm-extension.cjs", "require(\"fs\").writeFileSync(" + JSON.stringify(extMarker) + ", \"executed\");\nmodule.exports = { transformManifest: (m) => m };\n");
+write("npm-ext-mjs/.npm-extension.mjs", "export default {};\n");
+write("npm-ext-lookalike/npm-extension.cjs", "module.exports = {};\n");
+write("devc/.devcontainer/devcontainer.json", '{\n  // comment\n  "initializeCommand": "echo host",\n  "postCreateCommand": "npm install",\n  "postStartCommand": ["node", "start.js"]\n}\n');
+write("devc-root/.devcontainer.json", '{ "onCreateCommand": "make setup" }\n');
+write("devc-nested/.devcontainer/node/devcontainer.json", '{ "postAttachCommand": "echo hi" }\n');
+write("devc-safe/.devcontainer/devcontainer.json", '{\n  "image": "node:22",\n  // "postCreateCommand": "commented out"\n  "customizations": {}\n}\n');
+write("devc-elsewhere/config/devcontainer.json", '{ "postCreateCommand": "not a dev container config" }\n');
+write("bun-preload/bunfig.toml", 'preload = ["./preload.ts"]\n\n[test]\npreload = ["./setup.ts"] # test setup\n');
+write("bun-registry/bunfig.toml", '[install]\nregistry = { url = "https://registry.evil.example/", token = "bun_SECRET_123" }\n\n[install.scopes]\nmyorg = "https://user:pass@registry.myorg.example/"\nenvorg = { token = "$npm_token", url = "https://registry.npmjs.org/" }\n');
+write("bun-safe/bunfig.toml", '# preload = ["./x.ts"]\n[install]\nregistry = "https://registry.npmjs.org"\nexact = true\n[run]\nsilent = true\n');
+write("bun-trusted/package.json", JSON.stringify({ name: "bun-trusted", trustedDependencies: ["evil-native", "node-sass"] }));
+write("bun-trusted-empty/package.json", JSON.stringify({ name: "bun-trusted-empty", trustedDependencies: [] }));
 
 const run = (dir, extra = []) =>
   spawnSync(process.execPath, [path.join(__dirname, "audit.js"), ...extra, dir], { encoding: "utf8" });
@@ -299,6 +317,29 @@ check("supports workspaces.packages and ** patterns", wsObject.length === 1 && w
 check("does not flag ignore-scripts=true in the workspace root .npmrc", run(path.join(tmp, "ws-root-only")).status === 0);
 check("does not flag a nested .npmrc when the project has no workspaces", run(path.join(tmp, "ws-none")).status === 0);
 check("does not flag a .npmrc outside the workspace patterns", run(path.join(tmp, "ws-outside")).status === 0);
+
+// 1.7.0 checks
+const ext = run(path.join(tmp, "npm-ext"));
+check("flags .npm-extension.cjs", ext.status === 1 && /npm 12 extension file/.test(ext.stdout) && /npm\/cli#10304/.test(ext.stdout));
+check("flags .npm-extension.mjs", /npm 12 extension file/.test(run(path.join(tmp, "npm-ext-mjs")).stdout));
+check("ignores a lookalike extension file name", !/npm 12 extension file/.test(run(path.join(tmp, "npm-ext-lookalike")).stdout));
+check("never executes the extension file", !fs.existsSync(extMarker));
+const devc = JSON.parse(run(path.join(tmp, "devc"), ["--json"]).stdout);
+check("flags devcontainer initializeCommand as host code", devc.some((f) => f.rule.includes("initializeCommand runs on your own machine")));
+check("flags devcontainer postCreateCommand and postStartCommand", devc.filter((f) => /devcontainer post(Create|Start)Command runs/.test(f.rule)).length === 2);
+check("flags root .devcontainer.json", /onCreateCommand runs automatically/.test(run(path.join(tmp, "devc-root")).stdout));
+check("flags nested .devcontainer/<name>/devcontainer.json", /postAttachCommand runs automatically/.test(run(path.join(tmp, "devc-nested")).stdout));
+check("ignores commented and missing devcontainer commands", run(path.join(tmp, "devc-safe")).status === 0);
+check("ignores devcontainer.json outside .devcontainer", run(path.join(tmp, "devc-elsewhere")).status === 0);
+const bunPre = run(path.join(tmp, "bun-preload"));
+check("flags Bun preload and test.preload", /preload makes Bun run these files before bun run/.test(bunPre.stdout) && /test\.preload makes Bun run these files before bun test/.test(bunPre.stdout));
+const bunReg = run(path.join(tmp, "bun-registry"));
+check("flags Bun install registry and scoped registry", /installs come from another registry: https:\/\/registry\.evil\.example\//.test(bunReg.stdout) && /myorg packages install from another registry: https:\/\/registry\.myorg\.example\//.test(bunReg.stdout));
+check("flags Bun registry credentials without printing them", /ships registry credentials/.test(bunReg.stdout) && !/bun_SECRET_123|user:pass/.test(bunReg.stdout));
+check("does not flag the npmjs registry or env var tokens in Bun config", !/envorg packages install/.test(bunReg.stdout));
+check("ignores safe Bun config", run(path.join(tmp, "bun-safe")).status === 0);
+check("flags trustedDependencies for Bun", /trustedDependencies lets these packages run install scripts under Bun: evil-native, node-sass/.test(run(path.join(tmp, "bun-trusted")).stdout));
+check("ignores an empty trustedDependencies list", run(path.join(tmp, "bun-trusted-empty")).status === 0);
 
 fs.rmSync(tmp, { recursive: true, force: true });
 process.exit(ok ? 0 : 1);
