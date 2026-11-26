@@ -158,6 +158,10 @@ write("bun-safe/bunfig.toml", '# preload = ["./x.ts"]\n[install]\nregistry = "ht
 write("bun-trusted/package.json", JSON.stringify({ name: "bun-trusted", trustedDependencies: ["evil-native", "node-sass"] }));
 write("bun-trusted-empty/package.json", JSON.stringify({ name: "bun-trusted-empty", trustedDependencies: [] }));
 
+// .envrc: direnv runs it as a shell script on entering the folder after `direnv allow`
+write("direnv/.envrc" , "export FOO=bar\n");
+write("direnv-lookalike/envrc" ,"export FOO=bar\n");
+
 const run = (dir, extra = []) =>
   spawnSync(process.execPath, [path.join(__dirname, "audit.js"), ...extra, dir], { encoding: "utf8" });
 
@@ -340,6 +344,11 @@ check("does not flag the npmjs registry or env var tokens in Bun config", !/envo
 check("ignores safe Bun config", run(path.join(tmp, "bun-safe")).status === 0);
 check("flags trustedDependencies for Bun", /trustedDependencies lets these packages run install scripts under Bun: evil-native, node-sass/.test(run(path.join(tmp, "bun-trusted")).stdout));
 check("ignores an empty trustedDependencies list", run(path.join(tmp, "bun-trusted-empty")).status === 0);
+
+// .envrc (direnv)
+const direnv = run(path.join(tmp, "direnv"));
+check("flags .envrc (direnv)", direnv.status === 1 && /\.envrc: shell script that direnv runs/.test(direnv.stdout));
+check("ignores a lookalike envrc file name", run(path.join(tmp, "direnv-lookalike")).status === 0);
 
 fs.rmSync(tmp, { recursive: true, force: true });
 process.exit(ok ? 0 : 1);
