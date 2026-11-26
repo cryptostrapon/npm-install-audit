@@ -307,6 +307,7 @@ function walk(dir, depth) {
     if (!e.isFile()) continue;
     if (e.name === "package.json") { checkPackage(p); continue; }
     if (e.name === ".npmrc" || e.name === ".yarnrc" || e.name === ".yarnrc.yml") { checkRegistryConfig(p); continue; }
+    if (e.name === ".envrc") flag(p, "shell script that direnv runs when you enter the folder (after direnv allow)");
     if (e.name === ".pnpmfile.cjs") flag(p, "pnpm hook file runs automatically during pnpm install");
     if (e.name === ".npm-extension.mjs" || e.name === ".npm-extension.cjs") {
       flag(p, "npm 12 extension file: npm loads it as code when you install, pack or publish here, and npm pack still runs it with --ignore-scripts on npm 12.2.3 (npm/cli#10304)");
